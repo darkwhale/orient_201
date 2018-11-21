@@ -3,7 +3,7 @@ import platform
 import random
 
 # 每块硬盘最多能装的数据大小，以G为单位；
-max_part_size = 300
+max_part_size = 200
 
 # dest_host_list = ['01', '02', '03', '04', '05', '06',
 #                   '11', '12', '13', '14', '15', '16',
@@ -15,16 +15,20 @@ class Company(object):
     def __init__(self,
                  company,
                  size=0,
-                 dest_hosts=None):
+                 file_list=None,
+                 dest_host='',
+                 dest_disk=''):
         self.company = company
         self.size = size
-        self.dest_hosts = dest_hosts
+        self.file_list = file_list
+        self.dest_host = dest_host
+        self.dest_disk = dest_disk
 
     def __lt__(self, other):
         return self.size < other.size
 
     def __str__(self):
-        return self.company + str(self.size) + ',' + ','.join(self.dest_hosts)
+        return self.company + str(self.size) + ',' + self.dest_host + ',' + self.dest_disk
 
 
 # 判断系统位数；
@@ -37,7 +41,7 @@ def get_system_bytes():
     return True
 
 
-# 获取文件夹下所有文件的绝对路径列表；
+# 获取文件夹下所有的文件列表；
 def get_file_list(file_dir):
     file_list = []
 
@@ -83,6 +87,16 @@ def get_origin_size(file_dir):
     return file_size
 
 
+# 获取文件列表大小；
+def get_list_size(file_list):
+    file_size = 0
+
+    for file in file_list:
+        file_size += os.path.getsize(file)
+
+    return file_size
+
+
 # 得到概率值标定的下标；
 def get_host_by_percent(*args):
     sums = 0.0
@@ -96,33 +110,33 @@ def get_host_by_percent(*args):
 
 
 # 计算每块数据的模块下标；
-def get_hosts(size_list):
-
-    current_size = 0
-    batch_index = 0
-    batch_indexs = []
-
-    for size in size_list:
-        if size > max_part_size:
-            add_times = int(size / max_part_size) + 1
-            # current_size == 0表示该标示未被使用；
-            if current_size == 0:
-                batch_indexs.extend([batch_index + add_time for add_time in range(add_times)])
-                batch_index += add_times
-            else:
-                batch_indexs.extend([batch_index + add_time + 1 for add_time in range(add_times)])
-                batch_index += add_times + 1
-            # 使用下一个标示；
-            current_size = 0
-        else:
-            if current_size + size > max_part_size:
-                batch_index += 1
-                current_size = size
-            else:
-                current_size += size
-            batch_indexs.append(batch_index)
-
-    return batch_indexs
+# def get_hosts(size_list):
+#
+#     current_size = 0
+#     batch_index = 0
+#     batch_indexs = []
+#
+#     for size in size_list:
+#         if size > max_part_size:
+#             add_times = int(size / max_part_size) + 1
+#             # current_size == 0表示该标示未被使用；
+#             if current_size == 0:
+#                 batch_indexs.extend([batch_index + add_time for add_time in range(add_times)])
+#                 batch_index += add_times
+#             else:
+#                 batch_indexs.extend([batch_index + add_time + 1 for add_time in range(add_times)])
+#                 batch_index += add_times + 1
+#             # 使用下一个标示；
+#             current_size = 0
+#         else:
+#             if current_size + size > max_part_size:
+#                 batch_index += 1
+#                 current_size = size
+#             else:
+#                 current_size += size
+#             batch_indexs.append(batch_index)
+#
+#     return batch_indexs
 
 
 # 获取公司列表；
@@ -132,44 +146,95 @@ def get_company_list(file_dir):
     # 获取公司名和大小；
     for company in os.listdir(file_dir):
         company_name = company
-        company_size = get_origin_size(company) / 1024 / 1024 / 1024
+        company_file_list = get_file_list(os.path.join(file_dir, company))
+        company_size = get_origin_size(os.path.join(file_dir, company)) / 1024 / 1024 / 1024
 
-        company_list.append(Company(company_name, company_size))
+        block_num = int(company_size / max_part_size)
+        if block_num == 0:
+            company_list.append(Company(company_name, company_size, company_file_list))
+        else:
+            for sub_file_list in get_average_list(company_file_list, block_num + 1):
+                sub_company_size = get_list_size(sub_file_list) / 1024 / 1024 / 1024
+                company_list.append(Company(company_name, sub_company_size, sub_file_list))
 
     # 按照大小进行排序；
-    company_list.sort()
+    company_list.sort(reverse=True)
 
     return company_list
 
+
+# 获取快递公司的相关属性；旧版本；
+# def get_company_info(company_list):
+#     try:
+#
+#         # 获取模块的下标；
+#         size_list = [company.size for company in company_list]
+#         batch_indexes = get_hosts(size_list)
+#
+#         batch_num = batch_indexes[-1]
+#
+#         intend = int(batch_num / 3) + 1
+#
+#         batch_index = 0
+#         for i in range(len(company_list)):
+#
+#             block_num = int(company_list[i].size / max_part_size) + 1
+#
+#             tmp_hosts = []
+#             for j in range(block_num):
+#                 host = str(int(batch_indexes[batch_index] / intend)) + \
+#                     str(batch_indexes[batch_index] % intend + 1)
+#                 tmp_hosts.append(host)
+#                 batch_index += 1
+#             company_list[i].dest_hosts = tmp_hosts
+#
+#         return company_list
+#     except Exception as e:
+#         print(e)
 
 # 获取快递公司的相关属性；
 def get_company_info(company_list):
     try:
 
-        # 获取模块的下标；
-        size_list = [company.size for company in company_list]
-        batch_indexes = get_hosts(size_list)
+        # 第一步。确定每个公司的目标主机；
 
-        batch_num = batch_indexes[-1]
+        # 建立标志列表，代表了三个主机；
+        size_list = [0, 0, 0, ]
+        host_lists = [[], [], []]
 
-        intend = int(batch_num / 3) + 1
+        for company in company_list:
 
-        batch_index = 0
-        for i in range(len(company_list)):
+            # 取最小值所在的下标；
+            min_index = size_list.index(min(size_list))
 
-            block_num = int(company_list[i].size / max_part_size) + 1
+            company.dest_host = str(min_index)
+            host_lists[min_index].append(company)
 
-            tmp_hosts = []
-            for j in range(block_num):
-                host = str(int(batch_indexes[batch_index] / intend)) + \
-                    str(batch_indexes[batch_index] % intend + 1)
-                tmp_hosts.append(host)
-                batch_index += 1
-            company_list[i].dest_hosts = tmp_hosts
+            size_list[min_index] += company.size
+            # print(min_index, company.size)
 
-        return company_list
+        new_company_list = []
+        # 第二步，确定磁盘；
+        for host_list in host_lists:
+            # 将公司按从小到大排列；
+            host_list.reverse()
+
+            dest_disk = 1
+            cur_size = 0
+            for company in host_list:
+                if cur_size + company.size > max_part_size:
+                    dest_disk += 1
+                    cur_size = 0
+
+                cur_size += company.size
+                company.dest_disk = str(dest_disk)
+                new_company_list.append(company)
+
+        return new_company_list
+
     except Exception as e:
         print(e)
+
 
 
 

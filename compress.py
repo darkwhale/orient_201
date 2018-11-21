@@ -14,11 +14,11 @@ import test
 send_over = False
 
 
-def compress_thread(file_list, database, dest_host):
+def compress_thread(file_list, database, dest_host, dest_disk):
     try:
         make_log("INFO", "开始压缩文件：" + database)
 
-        create_zip(file_list, database, dest_host)
+        create_zip(file_list, database, dest_host, dest_disk)
 
         make_log("INFO", "文件压缩完毕：" + database)
 
@@ -45,20 +45,12 @@ def compress(file_dir):
         company_list = get_company_info(company_list)
 
         for company in company_list:
-            # 表示进入过压缩程序；
 
-            database = company.company
-
-            file_list = get_file_list(os.path.join(file_dir, database))
-            block_num = len(company.dest_hosts)
-
-            sub_lists = get_average_list(file_list, block_num)
-
-            for dest_host, sub_list in zip(company.dest_hosts, sub_lists):
-                new_compress_thread = threading.Thread(target=compress_thread,
-                                                       args=(sub_list, database, dest_host),
-                                                       name="compress")
-                new_compress_thread.start()
+            new_compress_thread = threading.Thread(target=compress_thread,
+                                                   args=(company.file_list, company.company,
+                                                         company.dest_host, company.dest_disk),
+                                                   name="compress")
+            new_compress_thread.start()
 
         global send_over
         while True:

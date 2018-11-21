@@ -40,7 +40,7 @@ def decode_batch_size(batch_str):
 """
 
 
-def create_zip(file_list, database, dest_host):
+def create_zip(file_list, database, dest_host, dest_disk):
 
     # file_index记录了下一个需要压缩的文件；
     file_index = read_mask(dest_host + database)
@@ -51,7 +51,7 @@ def create_zip(file_list, database, dest_host):
         process_bar(float(index) / len(new_file_list))
 
         if index == 0:
-            old_zip_file_name = os.path.join(zip_dir, "tmp" + dest_host + database + str(time.time()) + '.zip')
+            old_zip_file_name = os.path.join(zip_dir, "tmp" + dest_host + dest_disk + database + str(time.time()) + '.zip')
             part_zip = zipfile.ZipFile(old_zip_file_name,
                                        'w', zipfile.ZIP_DEFLATED)
 
@@ -72,7 +72,7 @@ def create_zip(file_list, database, dest_host):
             # 当不为最后一个文件时，创建新的压缩文件；
             if index + 1 != len(new_file_list):
 
-                old_zip_file_name = os.path.join(zip_dir, "tmp" + dest_host + database + str(time.time()) + '.zip')
+                old_zip_file_name = os.path.join(zip_dir, "tmp" + dest_host + dest_disk + database + str(time.time()) + '.zip')
                 part_zip = zipfile.ZipFile(old_zip_file_name, 'w', zipfile.ZIP_DEFLATED)
 
     process_bar(1)
